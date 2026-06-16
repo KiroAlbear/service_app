@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
+import 'models/SheetFullName.dart';
+
 class GoogleSheetsService {
   static const List<String> _scopes = [
     'https://www.googleapis.com/auth/spreadsheets',
@@ -62,42 +64,21 @@ class GoogleSheetsService {
     return headers;
   }
 
-  Future<int> _getSheetId({
+  Future<int> getFirstEmptyRowInsideTable({
     required String spreadsheetId,
     required String sheetName,
-    required Map<String, String> headers,
+    int startRow = 9,
+    int endRow = 28,
   }) async {
-    final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId'
-      '?fields=sheets.properties(sheetId,title)',
-    );
+    final headers = await _getAuthHeaders();
 
-    final response = await http.get(uri, headers: headers);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Failed to get sheet metadata: ${response.body}');
-    }
-
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final sheets = data['sheets'] as List<dynamic>;
-
-    final sheet = sheets.firstWhere(
-      (s) => s['properties']['title'] == sheetName,
-      orElse: () => throw Exception('Sheet "$sheetName" not found.'),
-    );
-
-    return sheet['properties']['sheetId'] as int;
-  }
-
-  Future<int> _getNextDataRow({
-    required String spreadsheetId,
-    required String sheetName,
-    required Map<String, String> headers,
-  }) async {
-    final range = Uri.encodeComponent(_a1(sheetName, 'A:Z'));
+    // Read C:H, but we will check D:H because C may already contain serial numbers.
+    final range = Uri.encodeComponent('$sheetName!C$startRow:H$endRow');
 
     final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range',
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+      '?majorDimension=ROWS'
+      '&valueRenderOption=FORMATTED_VALUE',
     );
 
     final response = await http.get(uri, headers: headers);
@@ -106,113 +87,78 @@ class GoogleSheetsService {
       throw Exception('Failed to read table rows: ${response.body}');
     }
 
-    final data = jsonDecode(response.body) as Map<String, dynamic>;
-    final values = data['values'] as List<dynamic>? ?? [];
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final values = (body['values'] as List?) ?? [];
 
-    final lastNonEmptyIndex = values.lastIndexWhere((r) {
-      final cells = r as List<dynamic>;
-      return cells.any((c) => c != null && c.toString().trim().isNotEmpty);
-    });
+    final totalRows = endRow - startRow + 1;
 
-    // If sheet is empty, write to row 1.
-    // Otherwise write after the last non-empty row.
-    return lastNonEmptyIndex == -1 ? 1 : lastNonEmptyIndex + 2;
+    for (int i = 0; i < totalRows; i++) {
+      final row = i < values.length
+          ? List<Object?>.from(values[i])
+          : <Object?>[];
+
+      // C:H = 6 columns.
+      // C index 0 may contain serial number.
+      // Check D:H only => indexes 1 to 5.
+      bool dataCellsAreEmpty = true;
+
+      for (int col = 1; col <= 5; col++) {
+        final value = col < row.length ? row[col] : null;
+
+        if (value != null && value.toString().trim().isNotEmpty) {
+          dataCellsAreEmpty = false;
+          break;
+        }
+      }
+
+      if (dataCellsAreEmpty) {
+        return startRow + i;
+      }
+    }
+
+    throw Exception('No empty row found inside C:H table.');
   }
 
-  String _a1(String sheetName, String range) {
-    final escapedSheetName = sheetName.replaceAll("'", "''");
-    return "'$escapedSheetName'!$range";
-  }
-
-  Future<void> appendRow({
+  Future<void> writeRowInsideTable({
     required String spreadsheetId,
     required String sheetName,
     required List<Object?> row,
-
-    /// Use this if you want to insert before a footer / total row.
-    /// Example: insertBeforeRow: 20 inserts the new row at row 20.
-    int? insertBeforeRow,
-
-    /// A:Z = 26 columns. Change this if your table is wider/narrower.
-    int columnCount = 26,
   }) async {
-    final headers = await _getAuthHeaders();
+    final user = _currentUser ?? await signIn();
 
-    final sheetId = await _getSheetId(
+    final authorization = await user.authorizationClient.authorizationForScopes(
+      _scopes,
+    );
+
+    if (authorization == null) {
+      await user.authorizationClient.authorizeScopes(_scopes);
+    }
+
+    final headers = await user.authorizationClient.authorizationHeaders(
+      _scopes,
+    );
+
+    if (headers == null) {
+      throw Exception('Could not get authorization headers.');
+    }
+    final int rowNumber = await getFirstEmptyRowInsideTable(
       spreadsheetId: spreadsheetId,
       sheetName: sheetName,
-      headers: headers,
+    );
+    final lastColumn = "H";
+    final escapedSheetName = sheetName.replaceAll("'", "''");
+
+    final range = Uri.encodeComponent(
+      "'$escapedSheetName'!C$rowNumber:$lastColumn$rowNumber",
     );
 
-    final targetRow =
-        insertBeforeRow ??
-        await _getNextDataRow(
-          spreadsheetId: spreadsheetId,
-          sheetName: sheetName,
-          headers: headers,
-        );
-
-    final requests = <Map<String, dynamic>>[
-      {
-        'insertDimension': {
-          'range': {
-            'sheetId': sheetId,
-            'dimension': 'ROWS',
-            'startIndex': targetRow - 1, // zero-based
-            'endIndex': targetRow,
-          },
-          'inheritFromBefore': targetRow > 1,
-        },
-      },
-    ];
-
-    // Extra safety: copy the full style/borders from the row above.
-    if (targetRow > 1) {
-      requests.add({
-        'copyPaste': {
-          'source': {
-            'sheetId': sheetId,
-            'startRowIndex': targetRow - 2,
-            'endRowIndex': targetRow - 1,
-            'startColumnIndex': 0,
-            'endColumnIndex': columnCount,
-          },
-          'destination': {
-            'sheetId': sheetId,
-            'startRowIndex': targetRow - 1,
-            'endRowIndex': targetRow,
-            'startColumnIndex': 0,
-            'endColumnIndex': columnCount,
-          },
-          'pasteType': 'PASTE_FORMAT',
-          'pasteOrientation': 'NORMAL',
-        },
-      });
-    }
-
-    final batchUri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId:batchUpdate',
-    );
-
-    final batchResponse = await http.post(
-      batchUri,
-      headers: {...headers, 'Content-Type': 'application/json'},
-      body: jsonEncode({'requests': requests}),
-    );
-
-    if (batchResponse.statusCode < 200 || batchResponse.statusCode >= 300) {
-      throw Exception('Failed to insert styled row: ${batchResponse.body}');
-    }
-
-    final writeRange = Uri.encodeComponent(_a1(sheetName, 'A$targetRow'));
-
-    final writeUri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$writeRange'
+    final uri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
       '?valueInputOption=USER_ENTERED',
     );
 
-    final writeResponse = await http.put(
-      writeUri,
+    final response = await http.put(
+      uri,
       headers: {...headers, 'Content-Type': 'application/json'},
       body: jsonEncode({
         'majorDimension': 'ROWS',
@@ -220,8 +166,349 @@ class GoogleSheetsService {
       }),
     );
 
-    if (writeResponse.statusCode < 200 || writeResponse.statusCode >= 300) {
-      throw Exception('Failed to write row values: ${writeResponse.body}');
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to write inside table: ${response.body}');
     }
+  }
+
+  Future<Map<String, int>> incrementColumnByExactName({
+    required String spreadsheetId,
+    required String sheetName,
+    required String targetColumnLetter,
+    required String firstName, // Column C
+    required String fatherName, // Column D
+    required String grandfatherName, // Column E
+    int startRow = 9,
+  }) async {
+    final headers = await _getAuthHeaders();
+
+    final targetColumn = targetColumnLetter.trim().toUpperCase();
+
+    if (!RegExp(r'^[A-Z]+$').hasMatch(targetColumn)) {
+      throw Exception('Invalid column letter: $targetColumnLetter');
+    }
+
+    // Read only the name columns C/D/E
+    final namesRange = _sheetRange(sheetName, 'C$startRow:E');
+
+    final namesUri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      '${Uri.encodeComponent(namesRange)}'
+      '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE',
+    );
+
+    final namesResponse = await http.get(namesUri, headers: headers);
+
+    if (namesResponse.statusCode < 200 || namesResponse.statusCode >= 300) {
+      throw Exception('Failed to read names: ${namesResponse.body}');
+    }
+
+    final namesBody = jsonDecode(namesResponse.body) as Map<String, dynamic>;
+    final rows = namesBody['values'] as List<dynamic>? ?? [];
+
+    int? matchedSheetRow;
+
+    String clean(Object? value) => value?.toString().trim() ?? '';
+
+    for (int i = 0; i < rows.length; i++) {
+      final row = rows[i] as List<dynamic>;
+
+      final cName = row.length > 0 ? clean(row[0]) : '';
+      final dName = row.length > 1 ? clean(row[1]) : '';
+      final eName = row.length > 2 ? clean(row[2]) : '';
+
+      final isSameStudent =
+          cName == firstName.trim() &&
+          dName == fatherName.trim() &&
+          eName == grandfatherName.trim();
+
+      if (isSameStudent) {
+        if (matchedSheetRow != null) {
+          throw Exception(
+            'More than one row found for this exact name in columns C/D/E.',
+          );
+        }
+
+        matchedSheetRow = startRow + i;
+      }
+    }
+
+    if (matchedSheetRow == null) {
+      throw Exception(
+        'Name not found in columns C/D/E: $firstName $fatherName $grandfatherName',
+      );
+    }
+
+    // Read current value from the target column in the matched row
+    final targetCellRange = _sheetRange(
+      sheetName,
+      '$targetColumn$matchedSheetRow',
+    );
+
+    final targetCellReadUri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      '${Uri.encodeComponent(targetCellRange)}'
+      '?valueRenderOption=UNFORMATTED_VALUE',
+    );
+
+    final targetCellReadResponse = await http.get(
+      targetCellReadUri,
+      headers: headers,
+    );
+
+    if (targetCellReadResponse.statusCode < 200 ||
+        targetCellReadResponse.statusCode >= 300) {
+      throw Exception(
+        'Failed to read target cell $targetColumn$matchedSheetRow: '
+        '${targetCellReadResponse.body}',
+      );
+    }
+
+    final targetCellBody =
+        jsonDecode(targetCellReadResponse.body) as Map<String, dynamic>;
+
+    final values = targetCellBody['values'] as List<dynamic>?;
+
+    final currentValueText =
+        values != null &&
+            values.isNotEmpty &&
+            values[0] is List &&
+            (values[0] as List).isNotEmpty
+        ? clean((values[0] as List)[0])
+        : '';
+
+    final currentValue = num.tryParse(currentValueText)?.toInt() ?? 0;
+    final newValue = currentValue + 1;
+
+    // Write only the target cell, so formatting/borders stay unchanged
+    final targetCellUpdateUri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      '${Uri.encodeComponent(targetCellRange)}'
+      '?valueInputOption=USER_ENTERED',
+    );
+
+    final updateResponse = await http.put(
+      targetCellUpdateUri,
+      headers: {...headers, 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'values': [
+          [newValue],
+        ],
+      }),
+    );
+
+    if (updateResponse.statusCode < 200 || updateResponse.statusCode >= 300) {
+      throw Exception(
+        'Failed to increment cell $targetColumn$matchedSheetRow: '
+        '${updateResponse.body}',
+      );
+    }
+
+    return {'row': matchedSheetRow, 'newValue': newValue};
+  }
+
+  Future<List<SheetFullName>> getFullNamesInTable({
+    required String spreadsheetId,
+    required String sheetName,
+    int startRow = 9,
+    int endRow = 80,
+  }) async {
+    final headers = await _getAuthHeaders();
+
+    // Read names from C/D/E only.
+    // C = first name, D = father name, E = grandfather name
+    final range = _sheetRange(sheetName, 'C$startRow:E$endRow');
+
+    final uri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      '${Uri.encodeComponent(range)}'
+      '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE',
+    );
+
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to get full names: ${response.body}');
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+    final rows = body['values'] as List<dynamic>? ?? [];
+
+    String clean(Object? value) => value?.toString().trim() ?? '';
+
+    final List<SheetFullName> names = [];
+
+    for (int i = 0; i < rows.length; i++) {
+      final row = rows[i] as List<dynamic>;
+
+      final firstName = row.length > 0 ? clean(row[0]) : '';
+      final fatherName = row.length > 1 ? clean(row[1]) : '';
+      final grandfatherName = row.length > 2 ? clean(row[2]) : '';
+
+      // Ignore completely empty rows inside the table
+      if (firstName.isEmpty && fatherName.isEmpty && grandfatherName.isEmpty) {
+        continue;
+      }
+
+      final fullName = [
+        firstName,
+        fatherName,
+        grandfatherName,
+      ].where((part) => part.isNotEmpty).join(' ');
+
+      names.add(
+        SheetFullName(
+          rowNumber: startRow + i,
+          firstName: firstName,
+          fatherName: fatherName,
+          grandfatherName: grandfatherName,
+          fullName: fullName,
+        ),
+      );
+    }
+
+    return names;
+  }
+
+  Future<List<String>> getSheetNames({required String spreadsheetId}) async {
+    final headers = await _getAuthHeaders();
+
+    final uri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId'
+      '?fields=sheets.properties.title',
+    );
+
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to get sheet names: ${response.body}');
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+    final sheets = body['sheets'] as List<dynamic>? ?? [];
+
+    return sheets.map((sheet) {
+      final properties = sheet['properties'] as Map<String, dynamic>;
+      return properties['title'].toString();
+    }).toList();
+  }
+
+  Future<String?> getNameByUsernameAndPassword({
+    required String spreadsheetId,
+    required String username,
+    required String password,
+  }) async {
+    final user = _currentUser ?? await signIn();
+
+    final authorization = await user.authorizationClient.authorizationForScopes(
+      _scopes,
+    );
+
+    if (authorization == null) {
+      await user.authorizationClient.authorizeScopes(_scopes);
+    }
+
+    final headers = await user.authorizationClient.authorizationHeaders(
+      _scopes,
+    );
+
+    if (headers == null) {
+      throw Exception('Could not get authorization headers.');
+    }
+
+    // Sheet1 columns:
+    // A = الباسورد
+    // B = اسم المستخدم
+    // C = اسم الخادم
+    final range = Uri.encodeComponent('Sheet1!A:C');
+
+    final uri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+      '?majorDimension=ROWS'
+      '&valueRenderOption=FORMATTED_VALUE',
+    );
+
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to read users from Sheet1: ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final values = data['values'] as List<dynamic>? ?? [];
+
+    // Skip header row
+    for (final rawRow in values.skip(1)) {
+      final row = rawRow as List<dynamic>;
+
+      final sheetPassword = row.isNotEmpty ? row[0].toString().trim() : '';
+      final sheetUsername = row.length > 1 ? row[1].toString().trim() : '';
+      final sheetName = row.length > 2 ? row[2].toString().trim() : '';
+
+      if (sheetUsername == username.trim() &&
+          sheetPassword == password.trim()) {
+        return sheetName;
+      }
+    }
+
+    return null; // invalid username or password
+  }
+
+  Future<List<String>> getSheetNamesOfCurrentYearWhereC5ContainsName({
+    required String spreadsheetId,
+    required String name,
+  }) async {
+    final searchedName = name.trim();
+
+    if (searchedName.isEmpty) {
+      return [];
+    }
+
+    final headers = await _getAuthHeaders();
+
+    final sheetNames = await getSheetNames(spreadsheetId: spreadsheetId);
+
+    final matchingSheets = <String>[];
+
+    for (final sheetName in sheetNames) {
+      final escapedSheetName = sheetName.replaceAll("'", "''");
+
+      final range = Uri.encodeComponent("'$escapedSheetName'!C5");
+
+      final uri = Uri.parse(
+        'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+        '?valueRenderOption=FORMATTED_VALUE',
+      );
+
+      final response = await http.get(uri, headers: headers);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(
+          'Failed to read C5 from sheet $sheetName: ${response.body}',
+        );
+      }
+
+      final body = jsonDecode(response.body) as Map<String, dynamic>;
+      final values = body['values'] as List<dynamic>? ?? [];
+
+      if (values.isEmpty || values.first.isEmpty) {
+        continue;
+      }
+
+      final cellValue = values.first.first.toString().trim();
+
+      if (cellValue.contains(searchedName) &&
+          sheetName.contains(DateTime.now().year.toString())) {
+        matchingSheets.add(sheetName);
+      }
+    }
+
+    return matchingSheets;
+  }
+
+  String _sheetRange(String sheetName, String range) {
+    final safeSheetName = sheetName.replaceAll("'", "''");
+    return "'$safeSheetName'!$range";
   }
 }
