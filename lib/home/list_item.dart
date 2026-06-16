@@ -189,7 +189,7 @@ class _ListItemState extends State<ListItem> {
                     debugPrint('Saved: $stock, $reserved, $onOrder, $damaged');
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xff0B57D0),
+                    backgroundColor: const Color(0xffC3C7CA),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
