@@ -7,6 +7,10 @@ import 'package:service/features/login/blocs/login_bloc.dart';
 import 'package:service/features/login/blocs/login_event.dart';
 import 'package:service/features/login/blocs/login_state.dart';
 
+import '../../core/services/secure_storage/secure_storage_keys.dart';
+import '../../core/services/secure_storage/secure_storage_manager.dart';
+import '../../core/services/secure_storage/secure_storage_values.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -18,6 +22,24 @@ class _LoginPageState extends State<LoginPage> {
   bool obscurePassword = true;
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      SecureStorageManager.getInstance()
+          .getValue(SecureStorageKeys.isLoggedIn)
+          .then((value) {
+            if (value == SecureStorageValues.trueValue) {
+              Routes.navigateToScreen(
+                Routes.homeScreen,
+                NavigationType.goNamed,
+                context,
+              );
+            }
+          });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
