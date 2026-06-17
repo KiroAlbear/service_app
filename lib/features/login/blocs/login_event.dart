@@ -6,10 +6,11 @@ abstract class LoginEvent extends Equatable {
   List<Object> get props => [];
 }
 
-class getLoginEvent extends LoginEvent {
-  final int number;
-  const getLoginEvent(this.number);
+class getSheetNameEvent extends LoginEvent {
+  final String username;
+  final String password;
+  const getSheetNameEvent(this.username, this.password);
 
   @override
-  List<Object> get props => [number];
+  List<Object> get props => [username, password];
 }

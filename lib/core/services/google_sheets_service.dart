@@ -1,10 +1,19 @@
 import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
+import 'package:service/constants.dart';
+import 'package:service/core/services/secure_storage/secure_storage_keys.dart';
+import 'package:service/core/services/secure_storage/secure_storage_manager.dart';
 
 import '../../features/models/SheetFullName.dart';
 
 class GoogleSheetsService {
+  static GoogleSheetsService? _instance;
+
+  static GoogleSheetsService getInstance() {
+    return _instance ??= GoogleSheetsService();
+  }
+
   static const List<String> _scopes = [
     'https://www.googleapis.com/auth/spreadsheets',
   ];
@@ -37,13 +46,42 @@ class GoogleSheetsService {
     await _googleSignIn.attemptLightweightAuthentication();
   }
 
-  Future<GoogleSignInAccount> signIn() async {
+  Future<String> getSheetNameofServant(String username, String password) async {
+    if (username.isEmpty || password.isEmpty) {
+      throw Exception("username or password cannot be empty");
+    }
+
+    final servantName = await _getNameByUsernameAndPassword(
+      username: username,
+      password: password,
+    );
+
+    if (servantName == null) {
+      throw Exception("Invalid username or password");
+    }
+
+    final List<String> sheetNames =
+        await _getSheetNamesOfCurrentYearWhereC5ContainsName(name: servantName);
+
+    if (sheetNames.isEmpty) {
+      throw Exception("No sheet found for this user");
+    }
+
+    SecureStorageManager.getInstance().setValue(
+      SecureStorageKeys.servantName,
+      servantName,
+    );
+
+    return sheetNames.first;
+  }
+
+  Future<GoogleSignInAccount> _signIn() async {
     _currentUser ??= await _googleSignIn.authenticate();
     return _currentUser!;
   }
 
   Future<Map<String, String>> _getAuthHeaders() async {
-    final user = _currentUser ?? await signIn();
+    final user = _currentUser ?? await _signIn();
 
     final authorization = await user.authorizationClient.authorizationForScopes(
       _scopes,
@@ -64,8 +102,7 @@ class GoogleSheetsService {
     return headers;
   }
 
-  Future<int> getFirstEmptyRowInsideTable({
-    required String spreadsheetId,
+  Future<int> _getFirstEmptyRowInsideTable({
     required String sheetName,
     int startRow = 9,
     int endRow = 28,
@@ -76,7 +113,7 @@ class GoogleSheetsService {
     final range = Uri.encodeComponent('$sheetName!C$startRow:H$endRow');
 
     final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/$range'
       '?majorDimension=ROWS'
       '&valueRenderOption=FORMATTED_VALUE',
     );
@@ -120,11 +157,10 @@ class GoogleSheetsService {
   }
 
   Future<void> writeRowInsideTable({
-    required String spreadsheetId,
     required String sheetName,
     required List<Object?> row,
   }) async {
-    final user = _currentUser ?? await signIn();
+    final user = _currentUser ?? await _signIn();
 
     final authorization = await user.authorizationClient.authorizationForScopes(
       _scopes,
@@ -141,8 +177,7 @@ class GoogleSheetsService {
     if (headers == null) {
       throw Exception('Could not get authorization headers.');
     }
-    final int rowNumber = await getFirstEmptyRowInsideTable(
-      spreadsheetId: spreadsheetId,
+    final int rowNumber = await _getFirstEmptyRowInsideTable(
       sheetName: sheetName,
     );
     final lastColumn = "H";
@@ -153,7 +188,7 @@ class GoogleSheetsService {
     );
 
     final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/$range'
       '?valueInputOption=USER_ENTERED',
     );
 
@@ -172,7 +207,6 @@ class GoogleSheetsService {
   }
 
   Future<Map<String, int>> incrementColumnByExactName({
-    required String spreadsheetId,
     required String sheetName,
     required String targetColumnLetter,
     required String firstName, // Column C
@@ -192,7 +226,7 @@ class GoogleSheetsService {
     final namesRange = _sheetRange(sheetName, 'C$startRow:E');
 
     final namesUri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/'
       '${Uri.encodeComponent(namesRange)}'
       '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE',
     );
@@ -213,7 +247,7 @@ class GoogleSheetsService {
     for (int i = 0; i < rows.length; i++) {
       final row = rows[i] as List<dynamic>;
 
-      final cName = row.length > 0 ? clean(row[0]) : '';
+      final cName = row.isNotEmpty ? clean(row[0]) : '';
       final dName = row.length > 1 ? clean(row[1]) : '';
       final eName = row.length > 2 ? clean(row[2]) : '';
 
@@ -246,7 +280,7 @@ class GoogleSheetsService {
     );
 
     final targetCellReadUri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/'
       '${Uri.encodeComponent(targetCellRange)}'
       '?valueRenderOption=UNFORMATTED_VALUE',
     );
@@ -282,7 +316,7 @@ class GoogleSheetsService {
 
     // Write only the target cell, so formatting/borders stay unchanged
     final targetCellUpdateUri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/'
       '${Uri.encodeComponent(targetCellRange)}'
       '?valueInputOption=USER_ENTERED',
     );
@@ -308,7 +342,6 @@ class GoogleSheetsService {
   }
 
   Future<List<SheetFullName>> getFullNamesInTable({
-    required String spreadsheetId,
     required String sheetName,
     int startRow = 9,
     int endRow = 80,
@@ -320,7 +353,7 @@ class GoogleSheetsService {
     final range = _sheetRange(sheetName, 'C$startRow:E$endRow');
 
     final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/'
       '${Uri.encodeComponent(range)}'
       '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE',
     );
@@ -341,7 +374,7 @@ class GoogleSheetsService {
     for (int i = 0; i < rows.length; i++) {
       final row = rows[i] as List<dynamic>;
 
-      final firstName = row.length > 0 ? clean(row[0]) : '';
+      final firstName = row.isNotEmpty ? clean(row[0]) : '';
       final fatherName = row.length > 1 ? clean(row[1]) : '';
       final grandfatherName = row.length > 2 ? clean(row[2]) : '';
 
@@ -370,11 +403,11 @@ class GoogleSheetsService {
     return names;
   }
 
-  Future<List<String>> getSheetNames({required String spreadsheetId}) async {
+  Future<List<String>> getSheetNames() async {
     final headers = await _getAuthHeaders();
 
     final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}'
       '?fields=sheets.properties.title',
     );
 
@@ -394,12 +427,11 @@ class GoogleSheetsService {
     }).toList();
   }
 
-  Future<String?> getNameByUsernameAndPassword({
-    required String spreadsheetId,
+  Future<String?> _getNameByUsernameAndPassword({
     required String username,
     required String password,
   }) async {
-    final user = _currentUser ?? await signIn();
+    final user = _currentUser ?? await _signIn();
 
     final authorization = await user.authorizationClient.authorizationForScopes(
       _scopes,
@@ -424,7 +456,7 @@ class GoogleSheetsService {
     final range = Uri.encodeComponent('Sheet1!A:C');
 
     final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/$range'
       '?majorDimension=ROWS'
       '&valueRenderOption=FORMATTED_VALUE',
     );
@@ -455,8 +487,7 @@ class GoogleSheetsService {
     return null; // invalid username or password
   }
 
-  Future<List<String>> getSheetNamesOfCurrentYearWhereC5ContainsName({
-    required String spreadsheetId,
+  Future<List<String>> _getSheetNamesOfCurrentYearWhereC5ContainsName({
     required String name,
   }) async {
     final searchedName = name.trim();
@@ -467,7 +498,7 @@ class GoogleSheetsService {
 
     final headers = await _getAuthHeaders();
 
-    final sheetNames = await getSheetNames(spreadsheetId: spreadsheetId);
+    final sheetNames = await getSheetNames();
 
     final matchingSheets = <String>[];
 
@@ -477,7 +508,7 @@ class GoogleSheetsService {
       final range = Uri.encodeComponent("'$escapedSheetName'!C5");
 
       final uri = Uri.parse(
-        'https://sheets.googleapis.com/v4/spreadsheets/$spreadsheetId/values/$range'
+        'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/$range'
         '?valueRenderOption=FORMATTED_VALUE',
       );
 

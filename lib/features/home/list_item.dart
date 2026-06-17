@@ -206,26 +206,6 @@ class _ListItemState extends State<ListItem> {
                 ),
               ),
             ),
-
-            const SizedBox(width: 8),
-
-            SizedBox(
-              width: 54,
-              height: 40,
-              child: ElevatedButton(
-                onPressed: () {},
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xffE5E7EB),
-                  foregroundColor: const Color(0xff334155),
-                  elevation: 0,
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(7),
-                  ),
-                ),
-                child: const Icon(Icons.more_vert_rounded),
-              ),
-            ),
           ],
         ),
       ],
@@ -256,6 +236,15 @@ class CounterRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              letterSpacing: 0.9,
+              fontWeight: FontWeight.w800,
+              color: Color(0xff1E293B),
+            ),
+          ),
           Container(
             height: 44,
             width: 142,
@@ -266,8 +255,7 @@ class CounterRow extends StatelessWidget {
             ),
             child: Row(
               children: [
-                _CircleButton(icon: Icons.remove_rounded, onTap: onMinus),
-
+                _CircleButton(icon: Icons.add_rounded, onTap: onPlus),
                 Expanded(
                   child: Center(
                     child: Text(
@@ -280,18 +268,8 @@ class CounterRow extends StatelessWidget {
                     ),
                   ),
                 ),
-
-                _CircleButton(icon: Icons.add_rounded, onTap: onPlus),
+                _CircleButton(icon: Icons.remove_rounded, onTap: onMinus),
               ],
-            ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 16,
-              letterSpacing: 0.9,
-              fontWeight: FontWeight.w800,
-              color: Color(0xff1E293B),
             ),
           ),
         ],

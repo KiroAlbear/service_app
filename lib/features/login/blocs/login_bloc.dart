@@ -1,27 +1,47 @@
 import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:service/core/services/google_sheets_service.dart';
+import 'package:service/core/services/secure_storage/secure_storage_keys.dart';
+import 'package:service/core/services/secure_storage/secure_storage_manager.dart';
+import 'package:service/core/services/secure_storage/secure_storage_values.dart';
 import 'login_event.dart';
 import 'login_state.dart';
 
 class LoginBloc extends Bloc<LoginEvent, LoginState> {
   LoginBloc() : super(LoginState()) {
-    on<getLoginEvent>(_getLogin);
+    on<getSheetNameEvent>(_getLogin);
   }
 
   FutureOr<void> _getLogin(
-    getLoginEvent event,
+    getSheetNameEvent event,
     Emitter<LoginState> emit,
   ) async {
-    // in case of loading
-    emit(LoginState());
+    emit(LoginLoadingState());
 
-    await Future.delayed(const Duration(seconds: 1));
+    try {
+      final sheetName = await GoogleSheetsService().getSheetNameofServant(
+        event.username,
+        event.password,
+      );
 
-    // in case of success
-    emit(LoginState(number: 3));
+      SecureStorageManager.getInstance().setValue(
+        SecureStorageKeys.sheetName,
+        sheetName,
+      );
 
-    // in case of failure
-    // emit(ErrorState(errorMessage: "Problem has happened"));
+      SecureStorageManager.getInstance().setValue(
+        SecureStorageKeys.isLoggedIn,
+        SecureStorageValues.trueValue,
+      );
+
+      emit(LoginSuccessState());
+    } catch (error) {
+      final message = error is Exception
+          ? error.toString().replaceFirst('Exception: ', '')
+          : "Something went wrong. Please try again.";
+
+      emit(LoginErrorState(errorMessage: message));
+    }
   }
 }
