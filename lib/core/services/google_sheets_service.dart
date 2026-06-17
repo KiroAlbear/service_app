@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:http/http.dart' as http;
 
-import 'models/SheetFullName.dart';
+import '../../features/models/SheetFullName.dart';
 
 class GoogleSheetsService {
   static const List<String> _scopes = [

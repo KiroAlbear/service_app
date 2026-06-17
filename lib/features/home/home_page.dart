@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:service/home/list_item.dart';
+
+import 'list_item.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});

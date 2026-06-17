@@ -1,4 +1,4 @@
-import 'package:service/models/month_count.dart';
+import 'features/models/month_count.dart';
 
 class Constants {
   static Map<String, MonthCount> monthCountColumns = {

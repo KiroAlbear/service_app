@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:service/constants.dart';
-import 'package:service/home/home_page.dart';
-import 'package:service/login/login_page.dart';
 
-import 'models/SheetFullName.dart';
-import 'google_sheets_service.dart';
+import 'core/services/google_sheets_service.dart';
+import 'features/login/login_page.dart';
 
 void main() {
   runApp(const MyApp());
