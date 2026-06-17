@@ -21,7 +21,6 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    GoogleSheetsService.getInstance().init();
   }
 
   // This widget is the root of your application.

@@ -3,10 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:service/core/routes/routes.dart';
 import 'package:service/core/utils/app_utils.dart';
 import 'package:service/core/widgets/custom_progress_bar.dart';
+import 'package:service/core/widgets/verse_widget.dart';
 import 'package:service/features/login/blocs/login_bloc.dart';
 import 'package:service/features/login/blocs/login_event.dart';
 import 'package:service/features/login/blocs/login_state.dart';
 
+import '../../core/services/google_sheets_service.dart';
 import '../../core/services/secure_storage/secure_storage_keys.dart';
 import '../../core/services/secure_storage/secure_storage_manager.dart';
 import '../../core/services/secure_storage/secure_storage_values.dart';
@@ -23,9 +25,12 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  final ValueNotifier<bool> loadingNotifier = ValueNotifier<bool>(false);
+
   @override
   void initState() {
     super.initState();
+    loadingNotifier.value = true;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       SecureStorageManager.getInstance()
           .getValue(SecureStorageKeys.isLoggedIn)
@@ -37,6 +42,7 @@ class _LoginPageState extends State<LoginPage> {
                 context,
               );
             }
+            loadingNotifier.value = false;
           });
     });
   }
@@ -66,212 +72,213 @@ class _LoginPageState extends State<LoginPage> {
             body: SafeArea(
               child: Directionality(
                 textDirection: TextDirection.rtl,
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 14),
-                    child: Column(
-                      children: [
-                        const SizedBox(height: 38),
-
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(
-                              Icons.church_outlined,
-                              size: 25,
-                              color: Color(0xff001B3A),
-                            ),
-                            SizedBox(width: 9),
-                            Text(
-                              'كنيسة مارمرقس جزيرة الوراق ',
-                              style: TextStyle(
-                                color: Color(0xff001B3A),
-                                fontSize: 23,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'serif',
+                child: ValueListenableBuilder(
+                  valueListenable: loadingNotifier,
+                  builder: (context, value, child) {
+                    return value
+                        ? Center(
+                            child: CircularProgressIndicator(
+                              constraints: BoxConstraints(
+                                minHeight: 50,
+                                minWidth: 50,
                               ),
                             ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 80),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(22, 24, 22, 21),
-                          decoration: BoxDecoration(
-                            color: const Color(0xfffafeff),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xffe0e9f2)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'اسم المستخدم',
-                                style: TextStyle(
-                                  color: Color(0xff363A3E),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                          )
+                        : SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
                               ),
+                              child: Column(
+                                children: [
+                                  const SizedBox(height: 38),
 
-                              const SizedBox(height: 8),
-
-                              _InputBox(
-                                icon: Icons.person_outline,
-                                hintText: 'ادخل اسم المستخدم',
-                                obscureText: false,
-                                controller: _usernameController,
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              const Text(
-                                'كلمة السر',
-                                style: TextStyle(
-                                  color: Color(0xff363A3E),
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-
-                              const SizedBox(height: 8),
-
-                              _InputBox(
-                                icon: Icons.lock_outline,
-                                hintText: '••••••••',
-                                obscureText: obscurePassword,
-                                controller: _passwordController,
-                                suffixIcon: IconButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      obscurePassword = !obscurePassword;
-                                    });
-                                  },
-                                  icon: Icon(
-                                    obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    color: const Color(0xff747C83),
-                                    size: 22,
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(height: 30),
-
-                              SizedBox(
-                                width: double.infinity,
-                                height: 44,
-                                child: ElevatedButton(
-                                  onPressed: state is LoginLoadingState
-                                      ? null
-                                      : () {
-                                          context.read<LoginBloc>().add(
-                                            getSheetNameEvent(
-                                              _usernameController.text,
-                                              _passwordController.text,
-                                            ),
-                                          );
-                                        },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xff001126),
-                                    foregroundColor: Colors.white,
-                                    elevation: 7,
-                                    shadowColor: Colors.black.withValues(
-                                      alpha: 0.35,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(24),
-                                    ),
-                                  ),
-                                  child: Row(
+                                  Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      const Text(
-                                        'تسجيل الدخول',
+                                    children: const [
+                                      Icon(
+                                        Icons.church_outlined,
+                                        size: 25,
+                                        color: Color(0xff001B3A),
+                                      ),
+                                      SizedBox(width: 9),
+                                      Text(
+                                        'كنيسة مارمرقس جزيرة الوراق ',
                                         style: TextStyle(
-                                          fontSize: 14,
+                                          color: Color(0xff001B3A),
+                                          fontSize: 23,
                                           fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.2,
+                                          fontFamily: 'serif',
                                         ),
                                       ),
-                                      const SizedBox(width: 10),
-                                      const Icon(Icons.arrow_forward, size: 19),
                                     ],
                                   ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
 
-                        const SizedBox(height: 44),
+                                  const SizedBox(height: 80),
 
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.fromLTRB(22, 24, 22, 20),
-                          decoration: BoxDecoration(
-                            color: const Color(0xfffdfcf9),
-                            borderRadius: BorderRadius.circular(9),
-                            border: Border.all(
-                              color: const Color(0xfff7ead2),
-                              width: 0.7,
-                            ),
-                          ),
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                left: -10,
-                                top: -19,
-                                child: Text(
-                                  '“',
-                                  style: TextStyle(
-                                    fontSize: 88,
-                                    color: Colors.white.withValues(alpha: 0.13),
-                                    fontWeight: FontWeight.bold,
-                                    height: 1,
-                                  ),
-                                ),
-                              ),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      22,
+                                      24,
+                                      22,
+                                      21,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xfffafeff),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: const Color(0xffe0e9f2),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'اسم المستخدم',
+                                          style: TextStyle(
+                                            color: Color(0xff363A3E),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
 
-                              Column(
-                                children: const [
-                                  Text(
-                                    '"تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ."',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: Color(0xff111C2A),
-                                      fontSize: 18,
-                                      height: 1.65,
-                                      fontWeight: FontWeight.w800,
-                                      fontStyle: FontStyle.italic,
-                                      fontFamily: 'serif',
+                                        const SizedBox(height: 8),
+
+                                        _InputBox(
+                                          icon: Icons.person_outline,
+                                          hintText: 'ادخل اسم المستخدم',
+                                          obscureText: false,
+                                          controller: _usernameController,
+                                        ),
+
+                                        const SizedBox(height: 24),
+
+                                        const Text(
+                                          'كلمة السر',
+                                          style: TextStyle(
+                                            color: Color(0xff363A3E),
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 8),
+
+                                        _InputBox(
+                                          icon: Icons.lock_outline,
+                                          hintText: '••••••••',
+                                          obscureText: obscurePassword,
+                                          controller: _passwordController,
+                                          suffixIcon: IconButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                obscurePassword =
+                                                    !obscurePassword;
+                                              });
+                                            },
+                                            icon: Icon(
+                                              obscurePassword
+                                                  ? Icons.visibility_outlined
+                                                  : Icons
+                                                        .visibility_off_outlined,
+                                              color: const Color(0xff747C83),
+                                              size: 22,
+                                            ),
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 30),
+
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 44,
+                                          child: ElevatedButton(
+                                            onPressed:
+                                                state is LoginLoadingState
+                                                ? null
+                                                : () async {
+                                                    context
+                                                        .read<LoginBloc>()
+                                                        .add(
+                                                          getSheetNameEvent(
+                                                            _usernameController
+                                                                .text,
+                                                            _passwordController
+                                                                .text,
+                                                          ),
+                                                        );
+                                                  },
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xff001126,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                              elevation: 7,
+                                              shadowColor: Colors.black
+                                                  .withValues(alpha: 0.35),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(24),
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                const Text(
+                                                  'تسجيل الدخول',
+                                                  style: TextStyle(
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.w700,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                const Icon(
+                                                  Icons.arrow_forward,
+                                                  size: 19,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
 
-                                  SizedBox(height: 12),
+                                  const SizedBox(height: 44),
 
-                                  Text(
-                                    'متى 28:11',
-                                    style: TextStyle(
-                                      color: Color(0xff6D541D),
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.1,
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.fromLTRB(
+                                      22,
+                                      24,
+                                      22,
+                                      20,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xfffdfcf9),
+                                      borderRadius: BorderRadius.circular(9),
+                                      border: Border.all(
+                                        color: const Color(0xfff7ead2),
+                                        width: 0.7,
+                                      ),
+                                    ),
+                                    child: VerseWidget(
+                                      verse:
+                                          '"تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ."',
+                                      verseLocation: 'متى 28:11',
                                     ),
                                   ),
+
+                                  const SizedBox(height: 20),
                                 ],
                               ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 20),
-                      ],
-                    ),
-                  ),
+                            ),
+                          );
+                  },
                 ),
               ),
             ),

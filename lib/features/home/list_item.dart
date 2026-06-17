@@ -19,7 +19,7 @@ class ListItem extends StatefulWidget {
 }
 
 class _ListItemState extends State<ListItem> {
-  bool isExpanded = true;
+  bool isExpanded = false;
 
   int stock = 156;
   int reserved = 42;
@@ -67,7 +67,7 @@ class _ListItemState extends State<ListItem> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.all(12),
+      margin: EdgeInsetsDirectional.symmetric(vertical: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,

@@ -46,10 +46,17 @@ class GoogleSheetsService {
     await _googleSignIn.attemptLightweightAuthentication();
   }
 
+  Future<void> signOut() async {
+    await _googleSignIn.signOut();
+    _currentUser = null;
+  }
+
   Future<String> getSheetNameofServant(String username, String password) async {
     if (username.isEmpty || password.isEmpty) {
       throw Exception("username or password cannot be empty");
     }
+
+    await GoogleSheetsService.getInstance().init();
 
     final servantName = await _getNameByUsernameAndPassword(
       username: username,
