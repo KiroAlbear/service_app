@@ -470,7 +470,7 @@ class GoogleSheetsService {
     // A = الباسورد
     // B = اسم المستخدم
     // C = اسم الخادم
-    final range = Uri.encodeComponent('Sheet1!A:C');
+    final range = Uri.encodeComponent('${Constants.configSheetName}!A:C');
 
     final uri = Uri.parse(
       'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/$range'
@@ -481,7 +481,9 @@ class GoogleSheetsService {
     final response = await http.get(uri, headers: headers);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Failed to read users from Sheet1: ${response.body}');
+      throw Exception(
+        'Failed to read users from ${Constants.configSheetName}: ${response.body}',
+      );
     }
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;

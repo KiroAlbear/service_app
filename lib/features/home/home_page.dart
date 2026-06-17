@@ -9,6 +9,7 @@ import 'package:service/features/home/blocs/home_state.dart';
 
 import '../../core/services/secure_storage/secure_storage_keys.dart';
 import '../../core/services/secure_storage/secure_storage_values.dart';
+import '../../core/utils/app_utils.dart';
 import '../../core/widgets/verse_widget.dart';
 import 'widgets/list_item.dart';
 
@@ -102,8 +103,16 @@ class _HomePageState extends State<HomePage> {
                 verseLocation: 'المزامير 23: 4',
               ),
               SizedBox(height: 20),
-              BlocBuilder<HomeBloc, HomeState>(
+              BlocConsumer<HomeBloc, HomeState>(
                 bloc: BlocProvider.of<HomeBloc>(context),
+                listener: (context, state) {
+                  if (state is HomeErrorState) {
+                    AppUtils.showAppToast(
+                      context: context,
+                      message: state.errorMessage,
+                    );
+                  }
+                },
                 builder: (context, HomeState state) {
                   if (state is HomeSuccessState) {
                     return Expanded(
@@ -135,6 +144,15 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                         ],
+                      ),
+                    );
+                  } else if (state is HomeLoadingState) {
+                    return Center(
+                      child: CircularProgressIndicator(
+                        constraints: BoxConstraints(
+                          minHeight: 50,
+                          minWidth: 50,
+                        ),
                       ),
                     );
                   }
