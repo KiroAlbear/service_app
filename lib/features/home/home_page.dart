@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:service/core/routes/routes.dart';
 import 'package:service/core/services/google_sheets_service.dart';
 import 'package:service/core/services/secure_storage/secure_storage_manager.dart';
+import 'package:service/features/home/blocs/home_bloc.dart';
+import 'package:service/features/home/blocs/home_event.dart';
+import 'package:service/features/home/blocs/home_state.dart';
 
 import '../../core/services/secure_storage/secure_storage_keys.dart';
 import '../../core/services/secure_storage/secure_storage_values.dart';
 import '../../core/widgets/verse_widget.dart';
-import 'list_item.dart';
+import 'widgets/list_item.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,6 +23,10 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      BlocProvider.of<HomeBloc>(context).add(getChildrenRowsEvent());
+    });
   }
 
   Future<void> _logOut() async {
@@ -94,23 +102,44 @@ class _HomePageState extends State<HomePage> {
                 verseLocation: 'المزامير 23: 4',
               ),
               SizedBox(height: 20),
-              Text(
-                "قائمة المخدومين",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: 18,
-                  itemBuilder: (context, index) {
-                    return ListItem(
-                      title: "test",
-                      category: "category",
-                      id: "id",
-                      total: 205,
+              BlocBuilder<HomeBloc, HomeState>(
+                bloc: BlocProvider.of<HomeBloc>(context),
+                builder: (context, HomeState state) {
+                  if (state is HomeSuccessState) {
+                    return Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "قائمة المخدومين",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              separatorBuilder: (context, index) =>
+                                  SizedBox(height: 10),
+                              itemCount: state.childrenRows.length,
+                              itemBuilder: (context, index) {
+                                return ListItem(
+                                  title:
+                                      "${state.childrenRows[index].fullName} ${state.childrenRows[index].fatherName} ${state.childrenRows[index].grandfatherName}",
+                                  category: "category",
+                                  id: "id",
+                                  total: 205,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
                     );
-                  },
-                ),
+                  }
+                  return SizedBox();
+                },
               ),
             ],
           ),

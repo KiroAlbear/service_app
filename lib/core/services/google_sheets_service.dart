@@ -21,8 +21,13 @@ class GoogleSheetsService {
   final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
 
   GoogleSignInAccount? _currentUser;
+  bool _isInitialized = false;
 
   Future<void> init() async {
+    if (_isInitialized) {
+      return;
+    }
+
     await _googleSignIn.initialize(
       serverClientId:
           "740898183630-cd7shmlk22lir62sqrrspj65eohu5isu.apps.googleusercontent.com",
@@ -44,6 +49,7 @@ class GoogleSheetsService {
     });
 
     await _googleSignIn.attemptLightweightAuthentication();
+    _isInitialized = true;
   }
 
   Future<void> signOut() async {
@@ -353,6 +359,10 @@ class GoogleSheetsService {
     int startRow = 9,
     int endRow = 80,
   }) async {
+    if (!_isInitialized) {
+      await init();
+    }
+
     final headers = await _getAuthHeaders();
 
     // Read names from C/D/E only.

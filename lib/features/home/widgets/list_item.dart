@@ -67,7 +67,6 @@ class _ListItemState extends State<ListItem> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsetsDirectional.symmetric(vertical: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
