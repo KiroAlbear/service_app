@@ -10,6 +10,7 @@ class ListItem extends StatefulWidget {
   final String firstName;
   final String fatherName;
   final String grandfatherName;
+  final bool isLoading;
 
   final int morningService; // قداس
   final int communion; // تناول
@@ -21,6 +22,7 @@ class ListItem extends StatefulWidget {
     required this.firstName,
     required this.fatherName,
     required this.grandfatherName,
+    this.isLoading = false,
     required this.morningService,
     required this.communion,
     required this.service,
@@ -35,8 +37,10 @@ class _ListItemState extends State<ListItem> {
   bool isExpanded = false;
 
   void increment(String field) {
+    if (widget.isLoading) return;
+
     final MonthColumns? targetColumn =
-        Constants.monthCountColumns[DateTime.now().month.toString()];
+        Constants.monthCountColumns[Constants.currentMonth.toString()];
 
     if (targetColumn == null) return;
 
@@ -88,8 +92,10 @@ class _ListItemState extends State<ListItem> {
   }
 
   void decrement(String field) {
+    if (widget.isLoading) return;
+
     final MonthColumns? targetColumn =
-        Constants.monthCountColumns[DateTime.now().month.toString()];
+        Constants.monthCountColumns[Constants.currentMonth.toString()];
 
     if (targetColumn == null) return;
 
@@ -150,35 +156,55 @@ class _ListItemState extends State<ListItem> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xffCBD5E1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+    return Stack(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xffCBD5E1)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _buildHeader(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildHeader(),
 
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: _buildExpandedContent(),
-            crossFadeState: isExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 220),
+              AnimatedCrossFade(
+                firstChild: const SizedBox.shrink(),
+                secondChild: _buildExpandedContent(),
+                crossFadeState: isExpanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+                duration: const Duration(milliseconds: 220),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+        if (widget.isLoading)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.72),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(
+                child: SizedBox(
+                  width: 30,
+                  height: 30,
+                  child: CircularProgressIndicator(strokeWidth: 3),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 

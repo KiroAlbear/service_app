@@ -11,6 +11,8 @@ class Constants {
   static const String serviceText = 'اجتماع';
   static const String confessionText = 'اعتراف';
 
+  static int currentMonth = DateTime.now().month;
+
   static Map<String, MonthColumns> monthCountColumns = {
     '12': MonthColumns(
       morningServiceColumn: 'J',

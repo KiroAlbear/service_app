@@ -11,6 +11,7 @@ import '../../core/services/secure_storage/secure_storage_keys.dart';
 import '../../core/services/secure_storage/secure_storage_values.dart';
 import '../../core/utils/app_utils.dart';
 import '../../core/widgets/verse_widget.dart';
+import '../models/month_values.dart';
 import 'widgets/list_item.dart';
 
 class HomePage extends StatefulWidget {
@@ -21,6 +22,17 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  bool _isLoadingChild(
+    HomeListLoadingState? loadingState,
+    MonthServiceValues child,
+  ) {
+    if (loadingState == null) return false;
+
+    return child.firstName == loadingState.firstName &&
+        child.fatherName == loadingState.fatherName &&
+        child.grandfatherName == loadingState.grandfatherName;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -114,7 +126,15 @@ class _HomePageState extends State<HomePage> {
                   }
                 },
                 builder: (context, HomeState state) {
-                  if (state is HomeSuccessState) {
+                  if (state is HomeSuccessState ||
+                      state is HomeListLoadingState) {
+                    final childrenRows = state is HomeSuccessState
+                        ? state.childrenRows
+                        : (state as HomeListLoadingState).childrenRows;
+                    final loadingState = state is HomeListLoadingState
+                        ? state
+                        : null;
+
                     return Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,22 +151,22 @@ class _HomePageState extends State<HomePage> {
                               shrinkWrap: true,
                               separatorBuilder: (context, index) =>
                                   SizedBox(height: 10),
-                              itemCount: state.childrenRows.length,
+                              itemCount: childrenRows.length,
                               itemBuilder: (context, index) {
+                                final child = childrenRows[index];
+
                                 return ListItem(
-                                  firstName:
-                                      state.childrenRows[index].firstName,
-                                  fatherName:
-                                      state.childrenRows[index].fatherName,
-                                  grandfatherName:
-                                      state.childrenRows[index].grandfatherName,
-                                  morningService:
-                                      state.childrenRows[index].morningService,
-                                  communion:
-                                      state.childrenRows[index].communion,
-                                  service: state.childrenRows[index].service,
-                                  confession:
-                                      state.childrenRows[index].confession,
+                                  firstName: child.firstName,
+                                  fatherName: child.fatherName,
+                                  grandfatherName: child.grandfatherName,
+                                  morningService: child.morningService,
+                                  communion: child.communion,
+                                  service: child.service,
+                                  confession: child.confession,
+                                  isLoading: _isLoadingChild(
+                                    loadingState,
+                                    child,
+                                  ),
                                 );
                               },
                             ),
