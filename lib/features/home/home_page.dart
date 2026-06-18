@@ -33,6 +33,72 @@ class _HomePageState extends State<HomePage> {
         child.grandfatherName == loadingState.grandfatherName;
   }
 
+  Future<void> _refreshChildrenRows() async {
+    final homeBloc = BlocProvider.of<HomeBloc>(context);
+
+    homeBloc.add(getChildrenRowsEvent());
+
+    await homeBloc.stream.firstWhere(
+      (state) => state is HomeSuccessState || state is HomeErrorState,
+    );
+  }
+
+  Widget _buildChildrenRowsSliver(HomeState state) {
+    if (state is HomeSuccessState || state is HomeListLoadingState) {
+      final childrenRows = state is HomeSuccessState
+          ? state.childrenRows
+          : (state as HomeListLoadingState).childrenRows;
+      final loadingState = state is HomeListLoadingState ? state : null;
+
+      return SliverPadding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) {
+              if (index == 0) {
+                return const Text(
+                  "قائمة المخدومين",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+                );
+              }
+
+              if (index.isOdd) {
+                return const SizedBox(height: 10);
+              }
+
+              final child = childrenRows[(index - 2) ~/ 2];
+
+              return ListItem(
+                firstName: child.firstName,
+                fatherName: child.fatherName,
+                grandfatherName: child.grandfatherName,
+                morningService: child.morningService,
+                communion: child.communion,
+                service: child.service,
+                confession: child.confession,
+                isLoading: _isLoadingChild(loadingState, child),
+              );
+            },
+            childCount: childrenRows.isEmpty ? 1 : childrenRows.length * 2 + 1,
+          ),
+        ),
+      );
+    }
+
+    if (state is HomeLoadingState) {
+      return const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: CircularProgressIndicator(
+            constraints: BoxConstraints(minHeight: 50, minWidth: 50),
+          ),
+        ),
+      );
+    }
+
+    return const SliverToBoxAdapter(child: SizedBox.shrink());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -69,10 +135,10 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xfff3f8fe),
-      appBar: AppBar(backgroundColor: Color(0xfff3f8fe)),
+      backgroundColor: const Color(0xfff3f8fe),
+      appBar: AppBar(backgroundColor: const Color(0xfff3f8fe)),
       drawer: Drawer(
-        backgroundColor: Color(0xfff3f8fe),
+        backgroundColor: const Color(0xfff3f8fe),
         child: SafeArea(
           child: Column(
             children: [
@@ -92,29 +158,39 @@ class _HomePageState extends State<HomePage> {
       ),
       body: Directionality(
         textDirection: TextDirection.rtl,
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              FutureBuilder(
-                future: SecureStorageManager.getInstance().getValue(
-                  SecureStorageKeys.servantName,
+        child: RefreshIndicator(
+          onRefresh: _refreshChildrenRows,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(12.0),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    FutureBuilder(
+                      future: SecureStorageManager.getInstance().getValue(
+                        SecureStorageKeys.servantName,
+                      ),
+                      builder: (context, snapshot) {
+                        return Text(
+                          " اهلا ${snapshot.data.toString()} ",
+                          style: const TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    VerseWidget(
+                      verse:
+                          '"أَيْضًا إِذَا سِرْتُ فِي وَادِي ظِلِّ الْمَوْتِ لَا أَخَافُ شَرًّا، لأَنَّكَ أَنْتَ مَعِي. عَصَاكَ وَعُكَّازُكَ هُمَا يُعَزِّيَانِنِي."',
+                      verseLocation: 'المزامير 23: 4',
+                    ),
+                    const SizedBox(height: 20),
+                  ]),
                 ),
-                builder: (context, snapshot) {
-                  return Text(
-                    " اهلا ${snapshot.data.toString()} ",
-                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-                  );
-                },
               ),
-              SizedBox(height: 10),
-              VerseWidget(
-                verse:
-                    '"أَيْضًا إِذَا سِرْتُ فِي وَادِي ظِلِّ الْمَوْتِ لَا أَخَافُ شَرًّا، لأَنَّكَ أَنْتَ مَعِي. عَصَاكَ وَعُكَّازُكَ هُمَا يُعَزِّيَانِنِي."',
-                verseLocation: 'المزامير 23: 4',
-              ),
-              SizedBox(height: 20),
               BlocConsumer<HomeBloc, HomeState>(
                 bloc: BlocProvider.of<HomeBloc>(context),
                 listener: (context, state) {
@@ -125,67 +201,7 @@ class _HomePageState extends State<HomePage> {
                     );
                   }
                 },
-                builder: (context, HomeState state) {
-                  if (state is HomeSuccessState ||
-                      state is HomeListLoadingState) {
-                    final childrenRows = state is HomeSuccessState
-                        ? state.childrenRows
-                        : (state as HomeListLoadingState).childrenRows;
-                    final loadingState = state is HomeListLoadingState
-                        ? state
-                        : null;
-
-                    return Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "قائمة المخدومين",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          Expanded(
-                            child: ListView.separated(
-                              shrinkWrap: true,
-                              separatorBuilder: (context, index) =>
-                                  SizedBox(height: 10),
-                              itemCount: childrenRows.length,
-                              itemBuilder: (context, index) {
-                                final child = childrenRows[index];
-
-                                return ListItem(
-                                  firstName: child.firstName,
-                                  fatherName: child.fatherName,
-                                  grandfatherName: child.grandfatherName,
-                                  morningService: child.morningService,
-                                  communion: child.communion,
-                                  service: child.service,
-                                  confession: child.confession,
-                                  isLoading: _isLoadingChild(
-                                    loadingState,
-                                    child,
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  } else if (state is HomeLoadingState) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        constraints: BoxConstraints(
-                          minHeight: 50,
-                          minWidth: 50,
-                        ),
-                      ),
-                    );
-                  }
-                  return SizedBox();
-                },
+                builder: (context, state) => _buildChildrenRowsSliver(state),
               ),
             ],
           ),
