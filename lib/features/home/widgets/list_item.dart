@@ -285,36 +285,6 @@ class _ListItemState extends State<ListItem> {
           onMinus: () => decrement(Constants.confessionText),
           onPlus: () => increment(Constants.confessionText),
         ),
-
-        const SizedBox(height: 16),
-
-        Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 40,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xffC3C7CA),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                  ),
-                  child: const Text(
-                    'Save Changes',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
