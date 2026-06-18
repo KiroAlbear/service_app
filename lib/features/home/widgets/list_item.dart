@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 
 class ListItem extends StatefulWidget {
+  final String firstName;
+  final String fatherName;
+  final String grandfatherName;
+
   const ListItem({
     super.key,
-    required this.title,
-    required this.category,
-    required this.id,
-    required this.total,
+    required this.firstName,
+    required this.fatherName,
+    required this.grandfatherName,
   });
-
-  final String title;
-  final String category;
-  final String id;
-  final int total;
 
   @override
   State<ListItem> createState() => _ListItemState();
@@ -26,10 +24,15 @@ class _ListItemState extends State<ListItem> {
   int onOrder = 50;
   int damaged = 4;
 
+  static const String morningServiceText = 'قداس';
+  static const String communionText = 'تناول';
+  static const String serviceText = 'اجتماع';
+  static const String confessionText = 'اعتراف';
+
   void increment(String field) {
     setState(() {
       switch (field) {
-        case 'قداس':
+        case morningServiceText:
           stock++;
           break;
         case 'تناول':
@@ -110,7 +113,7 @@ class _ListItemState extends State<ListItem> {
         children: [
           Expanded(
             child: Text(
-              widget.title,
+              "${widget.firstName} ${widget.fatherName} ${widget.grandfatherName}",
               style: const TextStyle(
                 fontSize: 15.5,
                 fontWeight: FontWeight.w700,
@@ -145,35 +148,35 @@ class _ListItemState extends State<ListItem> {
         const SizedBox(height: 18),
 
         CounterRow(
-          label: 'قداس',
+          label: morningServiceText,
           value: stock,
           valueColor: const Color(0xff004FD6),
-          onMinus: () => decrement('قداس'),
-          onPlus: () => increment('قداس'),
+          onMinus: () => decrement(morningServiceText),
+          onPlus: () => increment(morningServiceText),
         ),
 
         CounterRow(
-          label: 'تناول',
+          label: communionText,
           value: reserved,
           valueColor: const Color(0xff64748B),
-          onMinus: () => decrement('تناول'),
-          onPlus: () => increment('تناول'),
+          onMinus: () => decrement(communionText),
+          onPlus: () => increment(communionText),
         ),
 
         CounterRow(
-          label: 'اجتماع',
+          label: serviceText,
           value: onOrder,
           valueColor: const Color(0xffB45309),
-          onMinus: () => decrement('اجتماع'),
-          onPlus: () => increment('اجتماع'),
+          onMinus: () => decrement(serviceText),
+          onPlus: () => increment(serviceText),
         ),
 
         CounterRow(
-          label: 'اعتراف',
+          label: confessionText,
           value: damaged,
           valueColor: const Color(0xffDC2626),
-          onMinus: () => decrement('اعتراف'),
-          onPlus: () => increment('اعتراف'),
+          onMinus: () => decrement(confessionText),
+          onPlus: () => increment(confessionText),
         ),
 
         const SizedBox(height: 16),

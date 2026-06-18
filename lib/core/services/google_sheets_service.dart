@@ -400,19 +400,12 @@ class GoogleSheetsService {
         continue;
       }
 
-      final fullName = [
-        firstName,
-        fatherName,
-        grandfatherName,
-      ].where((part) => part.isNotEmpty).join(' ');
-
       names.add(
         SheetFullName(
           rowNumber: startRow + i,
           firstName: firstName,
           fatherName: fatherName,
           grandfatherName: grandfatherName,
-          fullName: fullName,
         ),
       );
     }

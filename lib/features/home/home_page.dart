@@ -134,11 +134,12 @@ class _HomePageState extends State<HomePage> {
                               itemCount: state.childrenRows.length,
                               itemBuilder: (context, index) {
                                 return ListItem(
-                                  title:
-                                      "${state.childrenRows[index].fullName} ${state.childrenRows[index].fatherName} ${state.childrenRows[index].grandfatherName}",
-                                  category: "category",
-                                  id: "id",
-                                  total: 205,
+                                  firstName:
+                                      state.childrenRows[index].firstName,
+                                  fatherName:
+                                      state.childrenRows[index].fatherName,
+                                  grandfatherName:
+                                      state.childrenRows[index].grandfatherName,
                                 );
                               },
                             ),
