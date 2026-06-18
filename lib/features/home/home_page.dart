@@ -140,6 +140,13 @@ class _HomePageState extends State<HomePage> {
                                       state.childrenRows[index].fatherName,
                                   grandfatherName:
                                       state.childrenRows[index].grandfatherName,
+                                  morningService:
+                                      state.childrenRows[index].morningService,
+                                  communion:
+                                      state.childrenRows[index].communion,
+                                  service: state.childrenRows[index].service,
+                                  confession:
+                                      state.childrenRows[index].confession,
                                 );
                               },
                             ),

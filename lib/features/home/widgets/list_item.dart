@@ -1,15 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:service/constants.dart';
+import 'package:service/features/home/blocs/home_bloc.dart';
+import 'package:service/features/home/blocs/home_event.dart';
+
+import '../../models/month_columns.dart';
 
 class ListItem extends StatefulWidget {
   final String firstName;
   final String fatherName;
   final String grandfatherName;
 
+  final int morningService; // قداس
+  final int communion; // تناول
+  final int service; // اجتماع
+  final int confession; // اعتراف
+
   const ListItem({
     super.key,
     required this.firstName,
     required this.fatherName,
     required this.grandfatherName,
+    required this.morningService,
+    required this.communion,
+    required this.service,
+    required this.confession,
   });
 
   @override
@@ -19,52 +34,118 @@ class ListItem extends StatefulWidget {
 class _ListItemState extends State<ListItem> {
   bool isExpanded = false;
 
-  int stock = 156;
-  int reserved = 42;
-  int onOrder = 50;
-  int damaged = 4;
-
-  static const String morningServiceText = 'قداس';
-  static const String communionText = 'تناول';
-  static const String serviceText = 'اجتماع';
-  static const String confessionText = 'اعتراف';
-
   void increment(String field) {
-    setState(() {
-      switch (field) {
-        case morningServiceText:
-          stock++;
-          break;
-        case 'تناول':
-          reserved++;
-          break;
-        case 'اجتماع':
-          onOrder++;
-          break;
-        case 'اعتراف':
-          damaged++;
-          break;
-      }
-    });
+    final MonthColumns? targetColumn =
+        Constants.monthCountColumns[DateTime.now().month.toString()];
+
+    if (targetColumn == null) return;
+
+    switch (field) {
+      case Constants.morningServiceText:
+        BlocProvider.of<HomeBloc>(context).add(
+          incrementColumnEvent(
+            targetColumnLetter: targetColumn.morningServiceColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+        break;
+      case Constants.communionText:
+        BlocProvider.of<HomeBloc>(context).add(
+          incrementColumnEvent(
+            targetColumnLetter: targetColumn.communionColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+
+        break;
+      case Constants.serviceText:
+        BlocProvider.of<HomeBloc>(context).add(
+          incrementColumnEvent(
+            targetColumnLetter: targetColumn.serviceColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+
+        break;
+      case Constants.confessionText:
+        BlocProvider.of<HomeBloc>(context).add(
+          incrementColumnEvent(
+            targetColumnLetter: targetColumn.confessionColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+
+        break;
+    }
   }
 
   void decrement(String field) {
-    setState(() {
-      switch (field) {
-        case 'قداس':
-          if (stock > 0) stock--;
-          break;
-        case 'تناول':
-          if (reserved > 0) reserved--;
-          break;
-        case 'اجتماع':
-          if (onOrder > 0) onOrder--;
-          break;
-        case 'اعتراف':
-          if (damaged > 0) damaged--;
-          break;
-      }
-    });
+    final MonthColumns? targetColumn =
+        Constants.monthCountColumns[DateTime.now().month.toString()];
+
+    if (targetColumn == null) return;
+
+    switch (field) {
+      case Constants.morningServiceText:
+        if (widget.morningService <= 0) return;
+
+        BlocProvider.of<HomeBloc>(context).add(
+          decremntColumnEvent(
+            targetColumnLetter: targetColumn.morningServiceColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+        break;
+      case Constants.communionText:
+        if (widget.communion <= 0) return;
+
+        BlocProvider.of<HomeBloc>(context).add(
+          decremntColumnEvent(
+            targetColumnLetter: targetColumn.communionColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+
+        break;
+      case Constants.serviceText:
+        if (widget.service <= 0) return;
+
+        BlocProvider.of<HomeBloc>(context).add(
+          decremntColumnEvent(
+            targetColumnLetter: targetColumn.serviceColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+
+        break;
+      case Constants.confessionText:
+        if (widget.confession <= 0) return;
+
+        BlocProvider.of<HomeBloc>(context).add(
+          decremntColumnEvent(
+            targetColumnLetter: targetColumn.confessionColumn,
+            firstName: widget.firstName,
+            fatherName: widget.fatherName,
+            grandfatherName: widget.grandfatherName,
+          ),
+        );
+
+        break;
+    }
   }
 
   @override
@@ -77,7 +158,7 @@ class _ListItemState extends State<ListItem> {
         border: Border.all(color: const Color(0xffCBD5E1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 3),
           ),
@@ -148,35 +229,35 @@ class _ListItemState extends State<ListItem> {
         const SizedBox(height: 18),
 
         CounterRow(
-          label: morningServiceText,
-          value: stock,
+          label: Constants.morningServiceText,
+          value: widget.morningService,
           valueColor: const Color(0xff004FD6),
-          onMinus: () => decrement(morningServiceText),
-          onPlus: () => increment(morningServiceText),
+          onMinus: () => decrement(Constants.morningServiceText),
+          onPlus: () => increment(Constants.morningServiceText),
         ),
 
         CounterRow(
-          label: communionText,
-          value: reserved,
+          label: Constants.communionText,
+          value: widget.communion,
           valueColor: const Color(0xff64748B),
-          onMinus: () => decrement(communionText),
-          onPlus: () => increment(communionText),
+          onMinus: () => decrement(Constants.communionText),
+          onPlus: () => increment(Constants.communionText),
         ),
 
         CounterRow(
-          label: serviceText,
-          value: onOrder,
+          label: Constants.serviceText,
+          value: widget.service,
           valueColor: const Color(0xffB45309),
-          onMinus: () => decrement(serviceText),
-          onPlus: () => increment(serviceText),
+          onMinus: () => decrement(Constants.serviceText),
+          onPlus: () => increment(Constants.serviceText),
         ),
 
         CounterRow(
-          label: confessionText,
-          value: damaged,
+          label: Constants.confessionText,
+          value: widget.confession,
           valueColor: const Color(0xffDC2626),
-          onMinus: () => decrement(confessionText),
-          onPlus: () => increment(confessionText),
+          onMinus: () => decrement(Constants.confessionText),
+          onPlus: () => increment(Constants.confessionText),
         ),
 
         const SizedBox(height: 16),
@@ -187,9 +268,7 @@ class _ListItemState extends State<ListItem> {
               child: SizedBox(
                 height: 40,
                 child: ElevatedButton(
-                  onPressed: () {
-                    debugPrint('Saved: $stock, $reserved, $onOrder, $damaged');
-                  },
+                  onPressed: () {},
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xffC3C7CA),
                     foregroundColor: Colors.white,

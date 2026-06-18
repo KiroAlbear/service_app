@@ -1,9 +1,9 @@
-import 'package:service/features/models/SheetFullName.dart';
+import '../../models/month_values.dart';
 
 class HomeState {}
 
 class HomeSuccessState extends HomeState {
-  final List<SheetFullName> childrenRows;
+  final List<MonthServiceValues> childrenRows;
   HomeSuccessState(this.childrenRows);
 }
 
@@ -12,6 +12,8 @@ class HomeIncrementSuccessState extends HomeState {
 }
 
 class HomeLoadingState extends HomeState {}
+
+class HomeListLoadingState extends HomeState {}
 
 class HomeErrorState extends HomeState {
   final String errorMessage;

@@ -33,3 +33,24 @@ class incrementColumnEvent extends HomeEvent {
     grandfatherName,
   ];
 }
+
+class decremntColumnEvent extends HomeEvent {
+  final String targetColumnLetter;
+  final String firstName;
+  final String fatherName;
+  final String grandfatherName;
+  const decremntColumnEvent({
+    required this.targetColumnLetter,
+    required this.firstName,
+    required this.fatherName,
+    required this.grandfatherName,
+  });
+
+  @override
+  List<Object> get props => [
+    targetColumnLetter,
+    firstName,
+    fatherName,
+    grandfatherName,
+  ];
+}

@@ -6,6 +6,7 @@ import 'package:service/core/services/secure_storage/secure_storage_keys.dart';
 import 'package:service/core/services/secure_storage/secure_storage_manager.dart';
 
 import '../../features/models/SheetFullName.dart';
+import '../../features/models/month_values.dart';
 
 class GoogleSheetsService {
   static GoogleSheetsService? _instance;
@@ -169,6 +170,186 @@ class GoogleSheetsService {
     throw Exception('No empty row found inside C:H table.');
   }
 
+  Future<List<MonthServiceValues>> getMonthServiceValues({
+    required String sheetName,
+    required int monthNumber,
+    int startRow = 9,
+    int endRow = 80,
+  }) async {
+    if (monthNumber < 1 || monthNumber > 12) {
+      throw Exception('Invalid month number: $monthNumber');
+    }
+
+    if (!_isInitialized) {
+      await init();
+    }
+
+    final user = _currentUser ?? await _signIn();
+
+    final authorization = await user.authorizationClient.authorizationForScopes(
+      _scopes,
+    );
+
+    if (authorization == null) {
+      await user.authorizationClient.authorizeScopes(_scopes);
+    }
+
+    final headers = await user.authorizationClient.authorizationHeaders(
+      _scopes,
+    );
+
+    if (headers == null) {
+      throw Exception('Could not get authorization headers.');
+    }
+
+    String clean(Object? value) {
+      return value?.toString().trim() ?? '';
+    }
+
+    Object? cell(List<dynamic> row, int index) {
+      if (index < 0 || index >= row.length) return null;
+      return row[index];
+    }
+
+    int toInt(Object? value) {
+      if (value == null) return 0;
+
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is num) return value.toInt();
+
+      final text = value.toString().trim();
+
+      if (text.isEmpty) return 0;
+
+      return int.tryParse(text) ?? double.tryParse(text)?.toInt() ?? 0;
+    }
+
+    final escapedSheetName = sheetName.replaceAll("'", "''");
+
+    // Row 6 contains month numbers.
+    // Row 7 contains service headers: قداس / تناول / اجتماع / اعتراف
+    // Data starts from row 9.
+    final range = Uri.encodeComponent("'$escapedSheetName'!A6:CZ$endRow");
+
+    final uri = Uri.parse(
+      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/$range'
+      '?majorDimension=ROWS'
+      '&valueRenderOption=UNFORMATTED_VALUE',
+    );
+
+    final response = await http.get(uri, headers: headers);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to read month service values: ${response.body}');
+    }
+
+    final body = jsonDecode(response.body) as Map<String, dynamic>;
+
+    final rows = ((body['values'] as List<dynamic>?) ?? [])
+        .map((row) => row is List<dynamic> ? row : <dynamic>[])
+        .toList();
+
+    if (rows.isEmpty) {
+      return <MonthServiceValues>[];
+    }
+
+    List<dynamic> getRowBySheetRowNumber(int sheetRowNumber) {
+      // Because the range starts from row 6.
+      final index = sheetRowNumber - 6;
+
+      if (index < 0 || index >= rows.length) {
+        return <dynamic>[];
+      }
+
+      return rows[index];
+    }
+
+    final monthHeaderRow = getRowBySheetRowNumber(6);
+    final serviceHeaderRow = getRowBySheetRowNumber(7);
+
+    if (serviceHeaderRow.isEmpty) {
+      throw Exception('Could not find service header row.');
+    }
+
+    final maxColumns = monthHeaderRow.length > serviceHeaderRow.length
+        ? monthHeaderRow.length
+        : serviceHeaderRow.length;
+
+    MonthServiceColumns? selectedMonthColumns;
+
+    for (int col = 0; col + 3 < maxColumns; col++) {
+      final isServiceBlock =
+          clean(cell(serviceHeaderRow, col)) == 'قداس' &&
+          clean(cell(serviceHeaderRow, col + 1)) == 'تناول' &&
+          clean(cell(serviceHeaderRow, col + 2)) == 'اجتماع' &&
+          clean(cell(serviceHeaderRow, col + 3)) == 'اعتراف';
+
+      if (!isServiceBlock) {
+        continue;
+      }
+
+      final blockMonthNumbers = [
+        toInt(cell(monthHeaderRow, col)),
+        toInt(cell(monthHeaderRow, col + 1)),
+        toInt(cell(monthHeaderRow, col + 2)),
+        toInt(cell(monthHeaderRow, col + 3)),
+      ];
+
+      if (blockMonthNumbers.contains(monthNumber)) {
+        selectedMonthColumns = MonthServiceColumns(
+          morningServiceIndex: col,
+          communionIndex: col + 1,
+          serviceIndex: col + 2,
+          confessionIndex: col + 3,
+        );
+
+        break;
+      }
+    }
+
+    if (selectedMonthColumns == null) {
+      throw Exception('Month number $monthNumber was not found.');
+    }
+
+    final result = <MonthServiceValues>[];
+
+    for (
+      int sheetRowNumber = startRow;
+      sheetRowNumber <= endRow;
+      sheetRowNumber++
+    ) {
+      final row = getRowBySheetRowNumber(sheetRowNumber);
+
+      final firstName = clean(cell(row, 2)); // Column C
+      final fatherName = clean(cell(row, 3)); // Column D
+      final grandfatherName = clean(cell(row, 4)); // Column E
+
+      final isEmptyNameRow =
+          firstName.isEmpty && fatherName.isEmpty && grandfatherName.isEmpty;
+
+      if (isEmptyNameRow) {
+        continue;
+      }
+
+      result.add(
+        MonthServiceValues(
+          firstName: firstName,
+          fatherName: fatherName,
+          grandfatherName: grandfatherName,
+          morningService: toInt(
+            cell(row, selectedMonthColumns.morningServiceIndex),
+          ),
+          communion: toInt(cell(row, selectedMonthColumns.communionIndex)),
+          service: toInt(cell(row, selectedMonthColumns.serviceIndex)),
+          confession: toInt(cell(row, selectedMonthColumns.confessionIndex)),
+        ),
+      );
+    }
+
+    return result;
+  }
+
   Future<void> writeRowInsideTable({
     required String sheetName,
     required List<Object?> row,
@@ -225,6 +406,45 @@ class GoogleSheetsService {
     required String firstName, // Column C
     required String fatherName, // Column D
     required String grandfatherName, // Column E
+    int startRow = 9,
+  }) {
+    return _editColumnByExactName(
+      sheetName: sheetName,
+      targetColumnLetter: targetColumnLetter,
+      firstName: firstName,
+      fatherName: fatherName,
+      grandfatherName: grandfatherName,
+      startRow: startRow,
+      editBy: 1,
+    );
+  }
+
+  Future<Map<String, int>> decrementColumnByExactName({
+    required String sheetName,
+    required String targetColumnLetter,
+    required String firstName, // Column C
+    required String fatherName, // Column D
+    required String grandfatherName, // Column E
+    int startRow = 9,
+  }) {
+    return _editColumnByExactName(
+      sheetName: sheetName,
+      targetColumnLetter: targetColumnLetter,
+      firstName: firstName,
+      fatherName: fatherName,
+      grandfatherName: grandfatherName,
+      startRow: startRow,
+      editBy: -1,
+    );
+  }
+
+  Future<Map<String, int>> _editColumnByExactName({
+    required String sheetName,
+    required String targetColumnLetter,
+    required String firstName, // Column C
+    required String fatherName, // Column D
+    required String grandfatherName, // Column E
+    required int editBy,
     int startRow = 9,
   }) async {
     final headers = await _getAuthHeaders();
@@ -325,7 +545,7 @@ class GoogleSheetsService {
         : '';
 
     final currentValue = num.tryParse(currentValueText)?.toInt() ?? 0;
-    final newValue = currentValue + 1;
+    final newValue = currentValue + editBy;
 
     // Write only the target cell, so formatting/borders stay unchanged
     final targetCellUpdateUri = Uri.parse(
@@ -346,7 +566,7 @@ class GoogleSheetsService {
 
     if (updateResponse.statusCode < 200 || updateResponse.statusCode >= 300) {
       throw Exception(
-        'Failed to increment cell $targetColumn$matchedSheetRow: '
+        'Failed to edit cell $targetColumn$matchedSheetRow: '
         '${updateResponse.body}',
       );
     }
@@ -354,64 +574,64 @@ class GoogleSheetsService {
     return {'row': matchedSheetRow, 'newValue': newValue};
   }
 
-  Future<List<SheetFullName>> getFullNamesInTable({
-    required String sheetName,
-    int startRow = 9,
-    int endRow = 80,
-  }) async {
-    if (!_isInitialized) {
-      await init();
-    }
-
-    final headers = await _getAuthHeaders();
-
-    // Read names from C/D/E only.
-    // C = first name, D = father name, E = grandfather name
-    final range = _sheetRange(sheetName, 'C$startRow:E$endRow');
-
-    final uri = Uri.parse(
-      'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/'
-      '${Uri.encodeComponent(range)}'
-      '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE',
-    );
-
-    final response = await http.get(uri, headers: headers);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Failed to get full names: ${response.body}');
-    }
-
-    final body = jsonDecode(response.body) as Map<String, dynamic>;
-    final rows = body['values'] as List<dynamic>? ?? [];
-
-    String clean(Object? value) => value?.toString().trim() ?? '';
-
-    final List<SheetFullName> names = [];
-
-    for (int i = 0; i < rows.length; i++) {
-      final row = rows[i] as List<dynamic>;
-
-      final firstName = row.isNotEmpty ? clean(row[0]) : '';
-      final fatherName = row.length > 1 ? clean(row[1]) : '';
-      final grandfatherName = row.length > 2 ? clean(row[2]) : '';
-
-      // Ignore completely empty rows inside the table
-      if (firstName.isEmpty && fatherName.isEmpty && grandfatherName.isEmpty) {
-        continue;
-      }
-
-      names.add(
-        SheetFullName(
-          rowNumber: startRow + i,
-          firstName: firstName,
-          fatherName: fatherName,
-          grandfatherName: grandfatherName,
-        ),
-      );
-    }
-
-    return names;
-  }
+  // Future<List<SheetFullName>> getFullNamesInTable({
+  //   required String sheetName,
+  //   int startRow = 9,
+  //   int endRow = 80,
+  // }) async {
+  //   if (!_isInitialized) {
+  //     await init();
+  //   }
+  //
+  //   final headers = await _getAuthHeaders();
+  //
+  //   // Read names from C/D/E only.
+  //   // C = first name, D = father name, E = grandfather name
+  //   final range = _sheetRange(sheetName, 'C$startRow:E$endRow');
+  //
+  //   final uri = Uri.parse(
+  //     'https://sheets.googleapis.com/v4/spreadsheets/${Constants.spreadsheetId}/values/'
+  //     '${Uri.encodeComponent(range)}'
+  //     '?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE',
+  //   );
+  //
+  //   final response = await http.get(uri, headers: headers);
+  //
+  //   if (response.statusCode < 200 || response.statusCode >= 300) {
+  //     throw Exception('Failed to get full names: ${response.body}');
+  //   }
+  //
+  //   final body = jsonDecode(response.body) as Map<String, dynamic>;
+  //   final rows = body['values'] as List<dynamic>? ?? [];
+  //
+  //   String clean(Object? value) => value?.toString().trim() ?? '';
+  //
+  //   final List<SheetFullName> names = [];
+  //
+  //   for (int i = 0; i < rows.length; i++) {
+  //     final row = rows[i] as List<dynamic>;
+  //
+  //     final firstName = row.isNotEmpty ? clean(row[0]) : '';
+  //     final fatherName = row.length > 1 ? clean(row[1]) : '';
+  //     final grandfatherName = row.length > 2 ? clean(row[2]) : '';
+  //
+  //     // Ignore completely empty rows inside the table
+  //     if (firstName.isEmpty && fatherName.isEmpty && grandfatherName.isEmpty) {
+  //       continue;
+  //     }
+  //
+  //     names.add(
+  //       SheetFullName(
+  //         rowNumber: startRow + i,
+  //         firstName: firstName,
+  //         fatherName: fatherName,
+  //         grandfatherName: grandfatherName,
+  //       ),
+  //     );
+  //   }
+  //
+  //   return names;
+  // }
 
   Future<List<String>> getSheetNames() async {
     final headers = await _getAuthHeaders();

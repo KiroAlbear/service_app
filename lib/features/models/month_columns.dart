@@ -1,10 +1,10 @@
-class MonthCount {
+class MonthColumns {
   String morningServiceColumn;
   String communionColumn;
   String serviceColumn;
   String confessionColumn;
 
-  MonthCount({
+  MonthColumns({
     required this.morningServiceColumn,
     required this.communionColumn,
     required this.serviceColumn,
