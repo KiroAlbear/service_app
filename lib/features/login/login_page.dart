@@ -252,20 +252,6 @@ class _LoginPageState extends State<LoginPage> {
 
                                   Container(
                                     width: double.infinity,
-                                    padding: const EdgeInsets.fromLTRB(
-                                      22,
-                                      24,
-                                      22,
-                                      20,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xfffdfcf9),
-                                      borderRadius: BorderRadius.circular(9),
-                                      border: Border.all(
-                                        color: const Color(0xfff7ead2),
-                                        width: 0.7,
-                                      ),
-                                    ),
                                     child: VerseWidget(
                                       verse:
                                           '"تَعَالَوْا إِلَيَّ يَا جَمِيعَ الْمُتْعَبِينَ وَالثَّقِيلِي الأَحْمَالِ، وَأَنَا أُرِيحُكُمْ."',
