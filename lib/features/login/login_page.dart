@@ -35,6 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       SecureStorageManager.getInstance()
           .getValue(SecureStorageKeys.isLoggedIn)
           .then((value) {
+            AppUtils.updateAndRestartApp(context);
             if (value == SecureStorageValues.trueValue) {
               Routes.navigateToScreen(
                 Routes.homeScreen,

@@ -40,6 +40,7 @@ dependencies:
   toastification: ^3.2.0
   flutter_secure_storage: ^10.1.0
   go_router: ^17.2.3
+  shorebird_code_push: ^2.0.5
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +63,8 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - shorebird.yaml
 
   # To add assets to your application, add an assets section, like this:
   # assets:
